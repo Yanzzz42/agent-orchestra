@@ -1,0 +1,14 @@
+# 執行紀錄、額度狀態、佇列（含你的 prompt 與專案路徑）
+orchestra/runs/
+orchestra/autopilot.json
+orchestra/config.json
+*.tmp
+
+# 各專案的自動駕駛規則與紀錄是你自己的，只發佈共通規則與範本
+autopilot/*.md
+!autopilot/RULES.md
+!autopilot/_template.md
+!autopilot/SCHEDULED_TASK.md
+
+.DS_Store
+node_modules/

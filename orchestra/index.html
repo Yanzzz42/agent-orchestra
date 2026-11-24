@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Orchestra</title>
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --sunk: #f1efe9; --ink: #1d1d1b; --muted: #6e6c66; --line: #e3e1da;
+  --claude: #c96442; --codex: #2f6fdb; --gemini: #7b4fd6; --flash: #1f9d8a; --copilot: #b45309; --opus: #a23b72;
+  --ok: #2e8b57; --fail: #c0392b; --run: #c98a0c; --quota: #d9480f; --wait: #4c6ef5;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161615; --panel: #201f1d; --sunk: #191917; --ink: #ecebe6; --muted: #9a978f; --line: #34322e;
+    --claude: #e08a68; --codex: #6d9cf0; --gemini: #a585ec; --flash: #4cc4b0; --copilot: #f0a050; --opus: #e07aa8; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.5 -apple-system, "PingFang TC", "Noto Sans TC", system-ui, sans-serif; }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 20px 24px 32px; }
+@media (max-width: 600px) { .wrap { padding: 16px; } }
+
+/* 標題列 */
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+.live { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.live.on::before { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.range { margin-left: auto; display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.range button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 6px; cursor: pointer; }
+.range button.on { background: var(--ink); color: var(--bg); }
+
+/* 總覽數字 */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+@media (max-width: 700px) { .stats { grid-template-columns: 1fr 1fr; } }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.stat .k { color: var(--muted); font-size: 12px; }
+.stat .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+.v .fail { color: var(--fail); }
+
+/* 主區：任務看板 + 決策紀錄 */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+@media (max-width: 1200px) { .main { grid-template-columns: 1fr; } }
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 10px; }
+
+/* 自動駕駛開關 */
+.auto { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; }
+.auto.on { border-color: var(--ok); }
+.auto-head { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+.projects { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.proj { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: var(--sunk); }
+.proj.on { background: color-mix(in srgb, var(--ok) 8%, var(--panel)); }
+.proj .pn { font-weight: 600; font-size: 13px; }
+.proj .pp { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj select, .add input, .add select { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.icon-btn { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+.icon-btn:hover { color: var(--fail); background: var(--panel); }
+.add { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.add input[name=path] { flex: 2 1 260px; } .add input[name=name] { flex: 1 1 120px; }
+.add button { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--ink); color: var(--bg); border-radius: 6px; padding: 3px 12px; cursor: pointer; }
+.add-err { color: var(--fail); font-size: 12px; margin-top: 4px; }
+.guard { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.guard input { width: 56px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.guard .meter { min-width: 140px; --c: var(--claude); }
+.guard.tripped { color: var(--quota); font-weight: 600; }
+.guard button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+@media (max-width: 600px) { .proj { grid-template-columns: auto minmax(0, 1fr) auto; } .proj select { grid-column: 2 / -1; } }
+.ask { max-width: min(420px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.ask p { margin: 0 0 14px; white-space: pre-wrap; line-height: 1.5; }
+.ask::backdrop { background: rgb(0 0 0 / .35); }
+.ask-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.ask-btns button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line); background: transparent; cursor: pointer; font: inherit; }
+.ask-btns .ok { background: #222; color: #fff; border-color: #222; }
+.switch { position: relative; width: 46px; height: 26px; border-radius: 13px; border: 0; background: var(--line); cursor: pointer; flex: none; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .3); transition: left .2s; }
+.switch[aria-checked="true"] { background: var(--ok); }
+.switch[aria-checked="true"]::after { left: 23px; }
+.auto .name { font-weight: 600; }
+.auto .info { font-size: 12.5px; color: var(--muted); display: flex; gap: 6px 14px; flex-wrap: wrap; }
+.auto .info b { color: var(--ink); font-weight: 600; }
+.auto .running { color: var(--run); font-weight: 600; }
+@media (max-width: 600px) { .lanes { grid-template-columns: 1fr; } }
+
+.lane { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--c); border-radius: 12px; display: flex; flex-direction: column; min-width: 0; }
+.lane-head { padding: 10px 12px 8px; border-bottom: 1px solid var(--line); }
+.lane-head .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lane-head h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.dot.busy { animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.state.busy { color: var(--run); font-weight: 600; }
+.role { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.lane-stats { display: flex; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.lane-stats b { color: var(--ink); font-weight: 600; }
+.share { height: 4px; border-radius: 2px; background: var(--sunk); margin-top: 6px; overflow: hidden; }
+.share span { display: block; height: 100%; background: var(--c); transition: width .4s; }
+
+.cards { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; cursor: pointer; background: var(--sunk); }
+.card:hover { border-color: var(--c); }
+.card.running { border-color: var(--run); background: color-mix(in srgb, var(--run) 8%, var(--panel)); }
+.card .t { font-weight: 600; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .m { font-size: 11.5px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.badge { font-size: 11px; padding: 0 6px; border-radius: 4px; color: #fff; line-height: 18px; }
+.badge.running { background: var(--run); } .badge.done { background: var(--ok); } .badge.failed { background: var(--fail); }
+.badge.quota { background: var(--quota); } .badge.waiting { background: var(--wait); }
+.card.waiting { border-color: var(--wait); border-style: dashed; }
+.link { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.link b { color: var(--ink); font-weight: 600; }
+.qbox { font-size: 12px; margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: var(--sunk); color: var(--muted); font-variant-numeric: tabular-nums; }
+.qbox.out { background: color-mix(in srgb, var(--quota) 12%, var(--panel)); color: var(--quota); font-weight: 600; }
+.meter { display: flex; align-items: center; gap: 6px; }
+.meter i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.meter i span { display: block; height: 100%; background: var(--c); }
+.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; line-height: 16px; }
+.more { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; padding: 4px; cursor: pointer; }
+.more:hover { color: var(--ink); }
+.empty { color: var(--muted); font-size: 12px; padding: 10px 4px; text-align: center; }
+
+/* 決策紀錄 */
+.log { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--claude); border-radius: 12px; }
+@media (min-width: 1201px) { .log { position: sticky; top: 16px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; } }
+.log .lane-head { --c: var(--claude); }
+.notes { padding: 8px 12px 12px; overflow-y: auto; }
+.note { position: relative; padding: 0 0 12px 16px; border-left: 2px solid var(--line); margin-left: 4px; cursor: pointer; }
+.note:last-child { padding-bottom: 0; }
+.note::before { content: ""; position: absolute; left: -5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--claude); }
+.note time { display: block; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.note p { margin: 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.note.open p { -webkit-line-clamp: unset; display: block; }
+
+/* 任務詳情 */
+dialog { width: min(820px, 94vw); max-height: 86vh; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); padding: 0; }
+dialog::backdrop { background: rgb(0 0 0 / .4); }
+dialog .dh { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+dialog section { padding: 12px 18px; }
+dialog h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; letter-spacing: .05em; }
+.meta { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; }
+pre { white-space: pre-wrap; word-break: break-word; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 0; max-height: 40vh; overflow: auto; font: 12.5px/1.5 ui-monospace, Menlo, monospace; }
+.close { font: inherit; background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Agent Orchestra</h1>
+    <span id="live" class="live">連線中…</span>
+    <div class="range" id="range">
+      <button data-r="today">今天</button><button data-r="week">近 7 天</button><button data-r="all">全部</button>
+    </div>
+  </div>
+
+  <div class="auto" id="auto">
+    <div class="auto-head"><span class="name" id="auto-name">自動駕駛</span><span class="info" id="auto-info">讀取中…</span></div>
+    <div class="guard" id="guard"></div>
+    <div class="projects" id="projects"></div>
+    <form class="add" id="add">
+      <input name="path" placeholder="專案資料夾，例如 ~/code/my-app" required>
+      <input name="name" placeholder="名稱（可留空）">
+      <select name="publish"><option value="commit">只 commit 不發佈</option><option value="auto">測試通過自動發佈</option></select>
+      <button>加入專案</button>
+    </form>
+    <div class="add-err" id="add-err"></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">派出任務</div><div class="v" id="s-total">0</div></div>
+    <div class="stat"><div class="k">執行中</div><div class="v" id="s-running">0</div></div>
+    <div class="stat"><div class="k">成功 / 失敗</div><div class="v" id="s-ok">0</div></div>
+    <div class="stat"><div class="k">子代理 token</div><div class="v" id="s-tokens">0</div></div>
+  </div>
+
+  <div class="main">
+    <div class="lanes" id="lanes"></div>
+    <aside class="log">
+      <div class="lane-head">
+        <div class="row"><h2><span class="dot"></span>Claude 決策紀錄</h2><span class="state" id="note-count"></span></div>
+        <div class="role">每次派工的分工理由，點一下展開全文</div>
+      </div>
+      <div class="notes" id="notes"></div>
+    </aside>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <div class="dh"><strong id="d-title"></strong><button class="close" onclick="dlg.close()">關閉</button></div>
+  <section><h3>資訊</h3><div id="d-meta" class="meta"></div></section>
+  <section><h3>Prompt</h3><pre id="d-prompt"></pre></section>
+  <section><h3>回覆</h3><pre id="d-out"></pre></section>
+</dialog>
+
+<script>
+// 頁內確認／提示視窗：Claude 桌面版的內嵌瀏覽器會擋掉原生 confirm 與 alert（直接回傳「取消」），
+// 所以開關、移除、改發佈方式都改用這個 <dialog>。
+function askDialog(message, withCancel) {
+  return new Promise((resolve) => {
+    const d = document.createElement('dialog');
+    d.className = 'ask';
+    d.innerHTML = `<p></p><div class="ask-btns">${withCancel ? '<button value="no">取消</button>' : ''}<button value="yes" class="ok">確定</button></div>`;
+    d.querySelector('p').textContent = message;
+    d.addEventListener('click', (e) => { const v = e.target.value; if (v) { d.close(); resolve(v === 'yes'); } });
+    d.addEventListener('cancel', () => resolve(false));
+    d.addEventListener('close', () => d.remove());
+    document.body.append(d);
+    d.showModal();
+    d.querySelector('.ok').focus();
+  });
+}
+const askConfirm = (m) => askDialog(m, true);
+const askAlert = (m) => askDialog(m, false);
+
+const AGENTS = [
+  { key: 'claude', name: 'Claude', role: '決策者，也親自接工作' },
+  { key: 'codex', name: 'Codex', role: '寫程式、改檔、跑測試' },
+  { key: 'opus', name: 'Opus', role: '經 Antigravity，不扣 Claude 用量' },
+  { key: 'gemini', name: 'Gemini', role: '研究、長文、review' },
+  { key: 'flash', name: 'Gemini Flash', role: '快速雜務' },
+  { key: 'copilot', name: 'Copilot', role: '第二寫手（扣 credits）' },
+];
+const PAGE = 6;
+const NAME = Object.fromEntries(AGENTS.map((a) => [a.key, a.name]));
+const STATUS = { running: '執行中', done: '完成', failed: '失敗', quota: '用量不足', waiting: '等待重置' };
+let quota = {};
+const tasks = new Map();
+const notes = new Map(); // 以時間+內容去重，重新連線時歷史會再送一次
+const expanded = new Set();
+const openNotes = new Set();
+let range = 'all';
+try { range = localStorage.getItem('range') || 'all'; } catch {}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (n) => (n ?? 0).toLocaleString();
+const compact = (n) => !n ? '0' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
+const dur = (s) => s == null ? '' : s < 60 ? s.toFixed(1) + 's'
+  : s < 3600 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.floor(s / 3600)}h ${Math.round(s % 3600 / 60)}m`;
+const when = (ts) => {
+  const d = new Date(ts), now = new Date();
+  const time = d.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`;
+};
+const cutoff = () => {
+  if (range === 'today') { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  if (range === 'week') return Date.now() - 7 * 864e5;
+  return 0;
+};
+
+document.getElementById('lanes').innerHTML = AGENTS.map((a) => `
+  <section class="lane" style="--c: var(--${a.key})">
+    <div class="lane-head">
+      <div class="row"><h2><span class="dot" id="dot-${a.key}"></span>${a.name}</h2><span class="state" id="state-${a.key}"></span></div>
+      <div class="role">${a.role}</div>
+      <div class="lane-stats" id="ls-${a.key}"></div>
+      <div class="share"><span id="share-${a.key}" style="width:0"></span></div>
+      <div id="q-${a.key}"></div>
+    </div>
+    <div class="cards" id="lane-${a.key}"></div>
+  </section>`).join('');
+
+document.getElementById('range').addEventListener('click', (e) => {
+  const r = e.target.dataset.r; if (!r) return;
+  range = r; try { localStorage.setItem('range', r); } catch {}
+  render();
+});
+
+function card(t) {
+  const secs = t.status === 'running' ? (Date.now() - t.ts) / 1000 : t.duration;
+  const from = t.fromId && tasks.get(t.fromId);
+  const links = [
+    from ? `接手自 <b>${NAME[from.agent] ?? from.agent}</b>` : '',
+    t.resumeOf ? '額度重置後接續' : '',
+    t.status === 'quota' && t.handoffTo ? `已交給 <b>${NAME[t.handoffTo] ?? t.handoffTo}</b>` : '',
+    t.status === 'waiting' ? `${when(t.until)} 重置後自動接續` : '',
+    t.resumed ? '已在額度重置後接續' : '',
+  ].filter(Boolean).join(' · ');
+  return `<div class="card ${t.status}" onclick="openTask('${t.id}')" title="${esc(t.title)}">
+    <div class="t">${esc(t.title)}</div>
+    <div class="m"><span class="badge ${t.status}">${STATUS[t.status]}</span><span>${dur(secs)}</span>
+      ${t.usage ? `<span>${compact(t.usage.total)} tok</span>` : ''}
+      ${t.write ? '<span class="tag">可寫檔</span>' : ''}<span>${when(t.ts)}</span></div>
+    ${links ? `<div class="link">${links}</div>` : ''}</div>`;
+}
+
+// 各 agent 的額度狀態：用量不足時顯示重置時間，Codex 顯示官方的使用百分比
+function quotaHtml(key) {
+  const q = quota[key];
+  if (key === 'claude') return '<div class="qbox">在本對話中工作，不經由派工計算額度</div>';
+  if (!q) return '';
+  if (!q.available) return `<div class="qbox out">用量不足 · ${when(q.cooling.until)} 重置</div>`;
+  const parts = [];
+  const rl = q.rateLimits;
+  const meter = (label, x) => `<div class="meter">${label}<i><span style="width:${x.usedPercent}%"></span></i>${Math.round(x.usedPercent)}%</div>`;
+  if (rl?.primary) parts.push(meter('5 小時', rl.primary));
+  if (rl?.secondary) parts.push(meter('每週', rl.secondary));
+  if (q.credits) parts.push(`<div class="meter">credits<i><span style="width:${Math.min(100, q.credits.usedThisMonth / q.credits.budget * 100)}%"></span></i>${q.credits.usedThisMonth}/${q.credits.budget}</div>`);
+  return `<div class="qbox">${parts.join('') || '可用 · 用完時才會偵測到'}</div>`;
+}
+
+async function refreshQuota() {
+  try { quota = await fetch('/quota').then((r) => r.json()); render(); } catch {}
+}
+
+function render() {
+  const from = cutoff();
+  document.querySelectorAll('#range button').forEach((b) => b.classList.toggle('on', b.dataset.r === range));
+  const all = [...tasks.values()].filter((t) => t.ts >= from);
+  const done = all.filter((t) => t.status === 'done').length;
+  const failed = all.filter((t) => t.status === 'failed').length;
+  const tok = {}; let sum = 0;
+  for (const t of all) { const n = t.usage?.total ?? 0; tok[t.agent] = (tok[t.agent] ?? 0) + n; sum += n; }
+
+  document.getElementById('s-total').textContent = all.length;
+  document.getElementById('s-running').textContent = all.filter((t) => t.status === 'running').length;
+  const quotaHit = all.filter((t) => t.status === 'quota' || t.status === 'waiting').length;
+  document.getElementById('s-ok').innerHTML = `${done}<small>/</small> <span class="${failed ? 'fail' : ''}">${failed}</span>${quotaHit ? `<small>用量不足 ${quotaHit}</small>` : ''}`;
+  document.getElementById('s-tokens').innerHTML = `${compact(sum)}<small>${fmt(sum)}</small>`;
+
+  for (const a of AGENTS) {
+    const mine = all.filter((t) => t.agent === a.key)
+      .sort((x, y) => (y.status === 'running') - (x.status === 'running') || y.ts - x.ts);
+    const running = mine.filter((t) => t.status === 'running').length;
+    const fails = mine.filter((t) => t.status === 'failed').length;
+    document.getElementById(`dot-${a.key}`).classList.toggle('busy', running > 0);
+    const st = document.getElementById(`state-${a.key}`);
+    st.textContent = running ? `工作中 ×${running}` : '閒置';
+    st.classList.toggle('busy', running > 0);
+    document.getElementById(`ls-${a.key}`).innerHTML =
+      `<span><b>${mine.length}</b> 任務</span>${fails ? `<span style="color:var(--fail)">${fails} 失敗</span>` : ''}<span><b>${compact(tok[a.key])}</b> tok</span><span>${sum ? Math.round((tok[a.key] ?? 0) / sum * 100) : 0}%</span>`;
+    document.getElementById(`share-${a.key}`).style.width = `${sum ? (tok[a.key] ?? 0) / sum * 100 : 0}%`;
+    document.getElementById(`q-${a.key}`).innerHTML = quotaHtml(a.key);
+
+    const limit = expanded.has(a.key) ? Infinity : PAGE;
+    const shown = mine.slice(0, limit);
+    let html = shown.map(card).join('') || '<div class="empty">此期間沒有任務</div>';
+    if (mine.length > PAGE) html += `<button class="more" onclick="toggleMore('${a.key}')">${
+      expanded.has(a.key) ? '收合' : `再顯示 ${mine.length - PAGE} 筆`}</button>`;
+    document.getElementById(`lane-${a.key}`).innerHTML = html;
+  }
+
+  const ns = [...notes.values()].filter((n) => n.ts >= from).sort((x, y) => y.ts - x.ts);
+  document.getElementById('note-count').textContent = `${ns.length} 則`;
+  document.getElementById('notes').innerHTML = ns.map((n) =>
+    `<div class="note ${openNotes.has(n.key) ? 'open' : ''}" onclick="toggleNote('${n.key}')"><time>${when(n.ts)}</time><p>${esc(n.text)}</p></div>`).join('')
+    || '<div class="empty">此期間沒有決策紀錄</div>';
+}
+
+function toggleMore(k) { expanded.has(k) ? expanded.delete(k) : expanded.add(k); render(); }
+function toggleNote(k) { openNotes.has(k) ? openNotes.delete(k) : openNotes.add(k); render(); }
+
+async function openTask(id) {
+  const t = tasks.get(id);
+  const name = AGENTS.find((a) => a.key === t.agent)?.name ?? t.agent;
+  document.getElementById('d-title').textContent = t.title;
+  document.getElementById('d-meta').innerHTML = [
+    `Agent：${esc(name)}`, `模型：${esc(t.model)}`, `狀態：${STATUS[t.status]}`,
+    t.until ? `額度重置：${new Date(t.until).toLocaleString('zh-TW', { hour12: false })}` : '',
+    t.handoffTo ? `交給：${NAME[t.handoffTo] ?? t.handoffTo}` : '',
+    t.duration != null ? `耗時：${dur(t.duration)}` : '',
+    t.usage ? `token：輸入 ${fmt(t.usage.input)}（快取 ${fmt(t.usage.cached)}）／輸出 ${fmt(t.usage.output)}` : '',
+    t.write ? '可寫檔' : '唯讀', `目錄：${esc(t.cwd)}`, `開始：${new Date(t.ts).toLocaleString('zh-TW', { hour12: false })}`,
+  ].filter(Boolean).map((s) => `<span>${s}</span>`).join('');
+  document.getElementById('d-prompt').textContent = t.prompt;
+  document.getElementById('d-out').textContent = t.status === 'running' ? '（執行中…）' : await fetch(`/output/${id}`).then((r) => r.text());
+  document.getElementById('dlg').showModal();
+}
+
+function handle(ev) {
+  if (ev.type === 'note') { const key = `${ev.ts}`; notes.set(key, { ...ev, key }); }
+  else if (ev.type === 'start') {
+    if (!tasks.has(ev.id)) tasks.set(ev.id, { ...ev, status: 'running' });
+    // 等待中的原任務被接續後，改成「用量不足（已接續）」
+    const orig = ev.resumeOf && tasks.get(ev.resumeOf);
+    if (orig) Object.assign(orig, { status: 'quota', resumed: true });
+  }
+  else if (ev.type === 'end' && tasks.has(ev.id)) {
+    Object.assign(tasks.get(ev.id), { status: ev.status, duration: ev.duration, usage: ev.usage,
+      until: ev.until, handoffTo: ev.handoffTo, session: ev.session });
+    if (ev.status === 'quota' || ev.status === 'waiting') refreshQuota();
+  }
+}
+
+let timer;
+const es = new EventSource('/events');
+const live = document.getElementById('live');
+es.onopen = () => { live.textContent = '即時連線'; live.classList.add('on'); };
+es.onerror = () => { live.textContent = '連線中斷，重試中…'; live.classList.remove('on'); };
+es.onmessage = (m) => { handle(JSON.parse(m.data)); clearTimeout(timer); timer = setTimeout(render, 50); };
+setInterval(() => { if ([...tasks.values()].some((t) => t.status === 'running')) render(); }, 1000);
+setInterval(refreshQuota, 30000);
+
+// ---- 自動駕駛開關 ----
+let auto = null;
+const PUBLISH = { auto: '測試通過自動發佈', commit: '只 commit 不發佈' };
+function renderAuto() {
+  if (!auto) return;
+  const on = auto.projects.filter((p) => p.enabled);
+  document.getElementById('auto').classList.toggle('on', on.length > 0);
+  document.getElementById('auto-name').innerHTML = `自動駕駛：${on.length ? `${on.length} 個專案開啟` : '全部關閉'}`
+    + (auto.running ? ` <span class="running">· 第 ${auto.round} 輪進行中</span>` : '');
+  document.getElementById('auto-info').innerHTML = [
+    `每 ${auto.intervalHours} 小時喚醒，開啟的專案輪流做`,
+    on.length ? `下次 <b>${when(auto.nextWake)}</b>` : '全部關閉時喚醒後會立刻結束',
+    auto.lastRunAt ? `上一輪 ${when(auto.lastRunAt)}：${esc(auto.lastResult)}` : '還沒跑過',
+  ].map((s) => `<span>${s}</span>`).join('');
+  const g = auto.guard, u = g.lastUsage;
+  const paused = g.pausedUntil && g.pausedUntil > Date.now();
+  const gEl = document.getElementById('guard');
+  gEl.classList.toggle('tripped', !!paused);
+  // 輸入框正在編輯時不重畫，避免打字被蓋掉
+  if (document.activeElement?.id !== 'guard-limit') gEl.innerHTML = `
+    <span>🛡️ 用量守護：Claude 每週用量達 <input id="guard-limit" type="number" min="1" max="100" value="${g.weeklyLimit}" aria-label="門檻百分比">% 時暫停</span>
+    ${u ? `<span class="meter">目前<i><span style="width:${Math.min(100, u.weekly)}%"></span></i>${u.weekly}%</span><span>（${when(u.at)} 讀取，${when(u.weeklyResetsAt)} 重置）</span>`
+        : '<span>還沒讀過用量（第一輪執行時會讀）</span>'}
+    ${paused ? `<span>已暫停到 ${when(g.pausedUntil)}</span><button id="guard-resume">解除暫停</button>` : ''}`;
+  document.getElementById('projects').innerHTML = auto.projects.map((p) => `
+    <div class="proj ${p.enabled ? 'on' : ''}">
+      <button class="switch" role="switch" aria-checked="${p.enabled}" aria-label="${esc(p.name)} 自動駕駛" data-toggle="${esc(p.id)}"></button>
+      <div style="min-width:0"><div class="pn">${esc(p.name)}</div><div class="pp" title="${esc(p.path)}">${esc(p.path)}</div></div>
+      <select data-publish="${esc(p.id)}" aria-label="發佈方式">${Object.entries(PUBLISH).map(([k, v]) =>
+        `<option value="${k}" ${p.publish === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <button class="icon-btn" data-remove="${esc(p.id)}" title="從清單移除（不會刪除檔案）" aria-label="移除 ${esc(p.name)}">×</button>
+    </div>`).join('') || '<div class="empty">還沒有專案，從下面加入一個</div>';
+}
+async function loadAuto() {
+  try { auto = await fetch('/autopilot').then((r) => r.json()); renderAuto(); } catch {}
+}
+async function postAuto(body) {
+  const r = await fetch('/autopilot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ error: '儀表板伺服器沒有回應' }));
+  if (!r.ok) throw new Error(j.error || '操作失敗');
+  auto = j; renderAuto();
+}
+document.getElementById('projects').addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-toggle],[data-remove]'); if (!t) return;
+  const p = auto.projects.find((x) => x.id === (t.dataset.toggle ?? t.dataset.remove));
+  try {
+    if (t.dataset.toggle) {
+      const enabled = !p.enabled;
+      if (enabled && !await askConfirm(`開啟「${p.name}」的自動駕駛？\n\nClaude 會每 ${auto.intervalHours} 小時自動優化這個專案，直到額度用完。\n發佈方式：${PUBLISH[p.publish]}${p.publish === 'auto' ? '（會直接發佈到正式環境）' : ''}`)) return;
+      await postAuto({ action: 'toggle', id: p.id, enabled });
+    } else if (await askConfirm(`把「${p.name}」從自動駕駛清單移除？（不會刪除專案檔案和規則檔）`)) {
+      await postAuto({ action: 'remove', id: p.id });
+    }
+  } catch (err) { await askAlert(err.message); }
+});
+document.getElementById('projects').addEventListener('change', async (e) => {
+  const id = e.target.dataset.publish; if (!id) return;
+  if (e.target.value === 'auto' && !await askConfirm('改成「測試通過自動發佈」？之後改動會直接發佈到正式環境。')) { renderAuto(); return; }
+  try { await postAuto({ action: 'publish', id, publish: e.target.value }); } catch (err) { await askAlert(err.message); renderAuto(); }
+});
+document.getElementById('guard').addEventListener('change', async (e) => {
+  if (e.target.id !== 'guard-limit') return;
+  const v = Number(e.target.value);
+  if (!Number.isInteger(v) || v < 1 || v > 100) { await askAlert('請輸入 1～100 的整數'); e.target.blur(); renderAuto(); return; }
+  try { e.target.blur(); await postAuto({ action: 'guard', weeklyLimit: v }); } catch (err) { await askAlert(err.message); }
+});
+document.getElementById('guard').addEventListener('click', async (e) => {
+  if (e.target.id !== 'guard-resume') return;
+  if (!await askConfirm('解除暫停？下一次喚醒時自動駕駛會繼續工作，即使 Claude 每週用量已超過門檻（下次讀到仍超過時會再暫停）。')) return;
+  try { await postAuto({ action: 'resume' }); } catch (err) { await askAlert(err.message); }
+});
+document.getElementById('add').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target), err = document.getElementById('add-err');
+  err.textContent = '';
+  try {
+    await postAuto({ action: 'add', path: f.get('path'), name: f.get('name'), publish: f.get('publish') });
+    e.target.reset();
+  } catch (ex) { err.textContent = ex.message; }
+});
+setInterval(loadAuto, 15000);
+loadAuto();
+refreshQuota();
+render();
+</script>
+</body>
+</html>

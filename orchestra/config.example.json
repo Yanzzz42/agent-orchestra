@@ -1,0 +1,14 @@
+{
+  "bins": {
+    "codex": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+    "agy": "/Applications/Gemini.app/Contents/Helpers/agy",
+    "copilot": "/opt/homebrew/bin/copilot"
+  },
+  "models": {
+    "gemini": "gemini-4-neon-xhigh",
+    "flash": "gemini-3.8-flash-high",
+    "opus": "claude-opus-5-5-high",
+    "copilot": "auto"
+  },
+  "copilotCredits": 300
+}
