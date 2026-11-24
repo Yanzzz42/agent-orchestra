@@ -9,7 +9,7 @@ import { readQueue, markLaunched, usageReport } from './quota.mjs';
 import { readAutopilot, writeAutopilot, updateProject, addProject, removeProject, nextWake, PUBLISH } from './autopilot.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const RUNS = path.join(ROOT, 'runs');
+const RUNS = path.resolve(process.env.ORCHESTRA_RUNS_DIR || path.join(ROOT, 'runs'));
 const LOG = path.join(RUNS, 'events.jsonl');
 const PORT = Number(process.env.PORT || 4747);
 fs.mkdirSync(RUNS, { recursive: true });
@@ -41,7 +41,7 @@ setInterval(() => {
     markLaunched(e.id);
     const out = fs.openSync(RESUME_LOG, 'a');
     spawn(process.execPath, [path.join(ROOT, 'dispatch.mjs'), 'resume', e.id],
-      { cwd: e.opts?.cwd || ROOT, stdio: ['ignore', out, out], detached: true }).unref();
+      { cwd: e.opts?.cwd || ROOT, stdio: ['ignore', out, out], detached: true, windowsHide: true }).unref();
     fs.closeSync(out);
     console.log(`額度已重置，接續任務 ${e.id}（${e.agent}）`);
   }

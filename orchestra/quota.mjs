@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-export const RUNS = path.join(ROOT, 'runs');
+export const RUNS = path.resolve(process.env.ORCHESTRA_RUNS_DIR || path.join(ROOT, 'runs'));
 export const LOG = path.join(RUNS, 'events.jsonl');
 const COOLING = path.join(RUNS, 'quota.json');
 const QUEUE = path.join(RUNS, 'queue.json');

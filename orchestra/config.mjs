@@ -14,23 +14,52 @@ try { user = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'))
 
 // 常見的安裝位置（PATH 找不到時才用）
 const KNOWN = {
-  codex: [
+  codex: process.platform === 'darwin' ? [
     '/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex',
     '/Applications/Codex.app/Contents/Resources/codex',
     '/opt/homebrew/bin/codex', '/usr/local/bin/codex', `${home}/.local/bin/codex`,
-  ],
-  agy: [
+  ] : [],
+  agy: process.platform === 'darwin' ? [
     '/Applications/Gemini.app/Contents/Helpers/agy',
     '/Applications/Antigravity.app/Contents/Resources/app/bin/agy',
     '/opt/homebrew/bin/agy', '/usr/local/bin/agy', `${home}/.local/bin/agy`,
-  ],
-  copilot: ['/opt/homebrew/bin/copilot', '/usr/local/bin/copilot', `${home}/.local/bin/copilot`],
+  ] : [],
+  copilot: process.platform === 'darwin' ? ['/opt/homebrew/bin/copilot', '/usr/local/bin/copilot', `${home}/.local/bin/copilot`] : [],
 };
 
 const ENV = { codex: 'CODEX_BIN', agy: 'AGY_BIN', copilot: 'COPILOT_BIN' };
 
 function onPath(name) {
-  try { return execFileSync('/usr/bin/env', ['which', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; } catch { return null; }
+  try {
+    if (process.platform === 'win32') {
+      const results = execFileSync('where.exe', [name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+        .split(/\r?\n/).map((p) => p.trim()).filter(Boolean);
+      return results.find((p) => /\.exe$/i.test(p)) || results.find((p) => /\.cmd$/i.test(p)) || results[0] || null;
+    }
+    return execFileSync('/usr/bin/env', ['which', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+  } catch { return null; }
+}
+
+if (process.platform === 'win32') {
+  const { APPDATA, LOCALAPPDATA, ProgramFiles } = process.env;
+  if (APPDATA) {
+    KNOWN.codex.push(path.join(APPDATA, 'npm', 'codex.cmd'));
+    KNOWN.copilot.push(path.join(APPDATA, 'npm', 'copilot.cmd'));
+  }
+  if (LOCALAPPDATA) {
+    KNOWN.agy.push(
+      path.join(LOCALAPPDATA, 'Programs', 'Antigravity', 'resources', 'app', 'bin', 'agy.exe'),
+      path.join(LOCALAPPDATA, 'Programs', 'Antigravity', 'resources', 'app', 'bin', 'agy.cmd'),
+    );
+    KNOWN.copilot.push(path.join(LOCALAPPDATA, 'Microsoft', 'WinGet', 'Links', 'copilot.exe'));
+  }
+  if (ProgramFiles) {
+    KNOWN.agy.push(path.join(ProgramFiles, 'Antigravity', 'resources', 'app', 'bin', 'agy.exe'));
+  }
+} else if (process.platform !== 'darwin') {
+  KNOWN.codex = [`${home}/.local/bin/codex`];
+  KNOWN.agy = [`${home}/.local/bin/agy`];
+  KNOWN.copilot = [`${home}/.local/bin/copilot`];
 }
 
 const cache = {};
@@ -38,7 +67,23 @@ const cache = {};
 export function binPath(bin) {
   if (bin in cache) return cache[bin];
   const candidates = [process.env[ENV[bin]], user.bins?.[bin], onPath(bin), ...KNOWN[bin]].filter(Boolean);
-  return (cache[bin] = candidates.find((p) => { try { fs.accessSync(p, fs.constants.X_OK); return true; } catch { return false; } }) ?? null);
+  const access = process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK;
+  return (cache[bin] = candidates.find((p) => { try { fs.accessSync(p, access); return true; } catch { return false; } }) ?? null);
+}
+
+export function spawnable(cmd, args) {
+  if (process.platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(cmd)) return { cmd, args };
+  try {
+    const shim = fs.readFileSync(cmd, 'utf8');
+    const match = shim.match(/["']?((?:%~?dp0%?|%~?dp0)[\\/][^"'\r\n]*?\.js)["']?/i);
+    if (match) {
+      const relative = match[1].replace(/%~?dp0%?/i, '').replace(/^[\\/]+/, '').replace(/[\\/]/g, path.sep);
+      const jsPath = path.resolve(path.dirname(cmd), relative);
+      if (fs.existsSync(jsPath)) return { cmd: process.execPath, args: [jsPath, ...args] };
+    }
+  } catch {}
+  // If the shim format is unknown, shell:true is the fallback; prompt quoting may be limited on Windows.
+  return { cmd, args, shell: true };
 }
 
 export const MODELS = {

@@ -10,7 +10,7 @@ node orchestra/dispatch.mjs <codex|gemini|flash|copilot> [--write] [--model M] [
 node orchestra/dispatch.mjs note "為什麼這樣分工"
 ```
 
-- 從 Bash 工具呼叫且沒有用管線餵 prompt 時，結尾加 `</dev/null`，否則 dispatch 會一直等 stdin。
+- 有給 prompt 參數時，dispatch 只會等管線 0.3 秒，不會卡住；結尾的 `</dev/null` 可加可不加（Windows 的 Git Bash 也支援）。
 - 預設唯讀；需要改檔才加 `--write`（Codex 用 workspace-write 沙盒，Gemini 用 accept-edits，Copilot 開放所有工具但路徑限於 cwd；唯讀時 Copilot 會拿掉 write / shell 工具）。
 - Gemini / Flash 在派工模式下不能執行終端指令（沒人能核准，跑了會中斷任務），dispatch 已在 prompt 裡禁止。需要跑指令或測試的任務派給 Codex 或 Copilot。
 - 互不相依的子任務用背景 Bash 同時派出，完成後再整合。

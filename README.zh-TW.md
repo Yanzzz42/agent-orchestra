@@ -2,6 +2,8 @@
 
 [English](README.md) · **繁體中文**
 
+[![test](https://github.com/Yanzzz42/agent-orchestra/actions/workflows/test.yml/badge.svg)](https://github.com/Yanzzz42/agent-orchestra/actions/workflows/test.yml)
+
 讓你付費的每一個 AI 訂閱都派上用場。Agent Orchestra 把 Claude Code 變成團隊領導：Claude 拆解任務，分派給 **Codex**、**Gemini**、**Gemini Flash**、**透過 Antigravity 的 Claude Opus** 和 **GitHub Copilot**，驗收它們的成果，並接手其他人做不完的工作。即時儀表板會顯示誰在做什麼、每個模型還剩多少額度。
 
 ## 功能
@@ -16,7 +18,7 @@
 
 ## 需求
 
-- macOS 或 Linux、[Node.js](https://nodejs.org) 18 以上（不需要安裝任何 npm 套件）
+- macOS、Linux 或 Windows 10/11（Windows 為實驗性支援）、[Node.js](https://nodejs.org) 18 以上（不需要安裝任何 npm 套件）
 - [Claude Code](https://claude.com/claude-code)
 - 下列 CLI 至少一個，並登入你自己的帳號：
 
@@ -35,7 +37,7 @@
 ```bash
 git clone https://github.com/Yanzzz42/agent-orchestra.git
 cd agent-orchestra
-./install.sh
+./install.sh        # Windows 用 install.cmd
 ```
 
 安裝程式會把 `/team` skill 複製到 `~/.claude/skills/team`（路徑會自動填好），並執行 `doctor` 列出找到哪些 CLI。之後隨時可以再跑 `node orchestra/dispatch.mjs doctor`。
@@ -55,7 +57,7 @@ cd agent-orchestra
 
 ```bash
 node orchestra/dispatch.mjs codex --write --cwd ~/code/my-app --title "補測試" "幫 src/parser.ts 寫單元測試並讓它們通過"
-node orchestra/dispatch.mjs flash "用 5 點摘要 CHANGELOG.md" </dev/null
+node orchestra/dispatch.mjs flash "用 5 點摘要 CHANGELOG.md"
 node orchestra/dispatch.mjs usage
 ```
 
@@ -113,7 +115,7 @@ skill/team/      /team skill（由 install.sh 安裝）
 
 ## 限制
 
-- 在 macOS 上測試過。Linux 應該可以用；不支援 Windows。
+- 作者每天在 macOS 上使用。Linux 與 Windows 每次推送都會跑自動測試，但 Windows 上登入帳號的實際使用還沒有回報，遇到問題歡迎開 issue。
 - 儀表板與給 Claude 的指示是繁體中文，Claude 會用你的語言回覆。
 - 用量不足的偵測依賴各 CLI 的錯誤訊息。Codex 會給確切的重置時間；其他 CLI 沒給時會用估計值（預設 1 小時）。
 - Antigravity 的剩餘額度無法用程式查詢，請到 Antigravity 的 **Settings › Models** 查看。

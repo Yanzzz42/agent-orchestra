@@ -2,6 +2,8 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
+[![test](https://github.com/Yanzzz42/agent-orchestra/actions/workflows/test.yml/badge.svg)](https://github.com/Yanzzz42/agent-orchestra/actions/workflows/test.yml)
+
 Use every AI subscription you pay for. Agent Orchestra turns Claude Code into a team lead: Claude breaks a task down, hands the pieces to **Codex**, **Gemini**, **Gemini Flash**, **Claude Opus via Antigravity** and **GitHub Copilot**, checks their work, and picks up anything nobody else can finish. A live dashboard shows who is doing what and how much quota each model has left.
 
 ## Features
@@ -16,7 +18,7 @@ Use every AI subscription you pay for. Agent Orchestra turns Claude Code into a 
 
 ## Requirements
 
-- macOS or Linux, [Node.js](https://nodejs.org) 18+ (no npm packages needed)
+- macOS, Linux or Windows 10/11 (Windows support is experimental), [Node.js](https://nodejs.org) 18+ (no npm packages needed)
 - [Claude Code](https://claude.com/claude-code)
 - At least one of these CLIs, signed in to your own account:
 
@@ -35,7 +37,7 @@ Models you don't have are skipped automatically.
 ```bash
 git clone https://github.com/Yanzzz42/agent-orchestra.git
 cd agent-orchestra
-./install.sh
+./install.sh        # Windows: install.cmd
 ```
 
 The installer copies the `/team` skill to `~/.claude/skills/team` (with the paths filled in) and runs `doctor` to show which CLIs it found. Run `node orchestra/dispatch.mjs doctor` again any time.
@@ -55,7 +57,7 @@ You can also dispatch directly:
 
 ```bash
 node orchestra/dispatch.mjs codex --write --cwd ~/code/my-app --title "Add tests" "Write unit tests for src/parser.ts and make them pass"
-node orchestra/dispatch.mjs flash "Summarize CHANGELOG.md in 5 bullet points" </dev/null
+node orchestra/dispatch.mjs flash "Summarize CHANGELOG.md in 5 bullet points"
 node orchestra/dispatch.mjs usage
 ```
 
@@ -113,7 +115,7 @@ skill/team/      the /team skill (installed by install.sh)
 
 ## Limitations
 
-- Tested on macOS. Linux should work; Windows is not supported.
+- Used daily on macOS. Linux and Windows pass automated tests on every push, but real sign-in use on Windows hasn't been reported yet. Please open an issue if something breaks.
 - The dashboard and Claude's instructions are written in Traditional Chinese. Claude replies in your language.
 - Quota detection relies on each CLI's error messages. Codex reports the exact reset time; for the others the time is estimated (default 1 hour) when it isn't given.
 - Antigravity's remaining quota can't be queried; check it in Antigravity under **Settings › Models**.

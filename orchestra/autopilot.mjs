@@ -68,8 +68,12 @@ export function removeProject(id) {
 
 // 新增專案：資料夾必須存在且在家目錄底下；規則檔從範本建立（已有就沿用）
 export function addProject({ name, path: dir, publish = 'commit', site = '' }) {
-  const abs = path.resolve(String(dir || '').replace(/^~(?=\/|$)/, os.homedir()));
-  if (!abs.startsWith(os.homedir() + path.sep)) throw new Error('專案資料夾必須在家目錄底下');
+  const abs = path.resolve(String(dir || '').replace(/^~(?=[/\\]|$)/, os.homedir()));
+  const home = os.homedir();
+  const withinHome = process.platform === 'win32'
+    ? abs.toLowerCase().startsWith((home + path.sep).toLowerCase())
+    : abs.startsWith(home + path.sep);
+  if (!withinHome) throw new Error('專案資料夾必須在家目錄底下');
   if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) throw new Error(`找不到資料夾：${abs}`);
   if (!PUBLISH[publish]) throw new Error('發佈方式只能是 auto 或 commit');
   const s = readAutopilot();

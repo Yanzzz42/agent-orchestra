@@ -27,7 +27,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { RUNS, LOG, detectQuota, coolingUntil, setCooling, enqueue, takeFromQueue, usageReport } from './quota.mjs';
 import { readAutopilot, writeAutopilot, enabledProjects, addProject, removeProject, updateProject, reportUsage, guardPaused, PUBLISH, STALE_MS } from './autopilot.mjs';
-import { binPath, MODELS } from './config.mjs';
+import { binPath, MODELS, spawnable } from './config.mjs';
 
 const BIN = new Proxy({}, { get: (_, bin) => binPath(bin) });
 
@@ -79,11 +79,16 @@ function parseArgs(argv) {
   return opts;
 }
 
-async function readStdin() {
-  if (process.stdin.isTTY) return '';
-  let s = '';
-  for await (const chunk of process.stdin) s += chunk;
-  return s;
+// 有 prompt 參數時只等管線一下：沒有資料就不再等（呼叫端沒關 stdin 也不會卡住，Windows 不必加 </dev/null）
+function readStdin(hasArgs) {
+  if (process.stdin.isTTY) return Promise.resolve('');
+  return new Promise((resolve) => {
+    let s = '';
+    const done = () => { clearTimeout(timer); process.stdin.pause(); resolve(s); };
+    const timer = hasArgs ? setTimeout(() => { if (!s) done(); }, 300) : null;
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (d) => (s += d)).on('end', done).on('error', done);
+  });
 }
 
 // session：要接續的對話 id（resume 時才有）
@@ -194,7 +199,10 @@ async function execAgent(agentKey, prompt, opts, outFile, session) {
   const faked = fakeQuota(agentKey);
   if (faked) return faked;
   const built = buildCommand(agentKey, prompt, opts, outFile, session);
-  const child = spawn(built.cmd, built.args, { cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  const command = spawnable(built.cmd, built.args);
+  const child = spawn(command.cmd, command.args, {
+    cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, ...(command.shell ? { shell: true } : {}),
+  });
   let stdout = '', stderr = '';
   child.stdout.on('data', (d) => (stdout += d));
   child.stderr.on('data', (d) => (stderr += d));
@@ -348,9 +356,9 @@ function doctorCommand() {
   const [major] = process.versions.node.split('.').map(Number);
   console.log(`Node.js ${process.versions.node} ${major >= 18 ? '✓' : '✗（需要 18 以上）'}`);
   const hint = {
-    codex: 'Codex CLI：https://github.com/openai/codex（ChatGPT 桌面版也內建）',
-    agy: 'Antigravity CLI（agy）：安裝 Google Antigravity 或 Gemini 桌面版',
-    copilot: 'GitHub Copilot CLI：https://github.com/github/copilot-cli',
+    codex: 'Codex CLI：https://github.com/openai/codex（ChatGPT 桌面版也內建；Windows：npm i -g @openai/codex）',
+    agy: 'Antigravity CLI（agy）：安裝 Google Antigravity 或 Gemini 桌面版（Windows：使用 Antigravity 安裝程式）',
+    copilot: 'GitHub Copilot CLI：https://github.com/github/copilot-cli（Windows：npm i -g @github/copilot 或 winget）',
   };
   for (const bin of ['codex', 'agy', 'copilot']) {
     const p = binPath(bin);
@@ -478,7 +486,7 @@ async function main() {
     return 2;
   }
 
-  const prompt = (opts.rest.join(' ') + '\n' + (await readStdin())).trim();
+  const prompt = (opts.rest.join(' ') + '\n' + (await readStdin(opts.rest.length > 0))).trim();
   if (!prompt) { console.error('缺少 prompt'); return 2; }
   return runTask({ agent: cmd, prompt, opts, title: opts.title || prompt.split('\n')[0].slice(0, 60) });
 }
